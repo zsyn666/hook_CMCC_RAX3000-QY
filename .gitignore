@@ -1,0 +1,13 @@
+# Secrets / local state
+secrets.env
+*.session
+session.txt
+system_config.use
+system_config.bak
+*.use
+*.bak
+*.log
+
+# Python
+__pycache__/
+*.pyc
