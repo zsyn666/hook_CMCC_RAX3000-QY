@@ -1,207 +1,213 @@
-# 05. 将 admin 的 Web 等级改为 1（尝试，未生效）
+# 05. 将 admin 的 Web 等级改为 1（已成功）
 
 ## 目标
 
-把 Web 管理员账号 `admin` 的等级从 `3` 提升到 `1`（superadmin 级），从而在 Web UI 中直接看到所有隐藏功能，不再需要代理改响应。
+把 Web 管理员账号 `admin` 的等级从 `3` 提升到 `1`（superadmin 级），从而在 Web UI 中直接看到所有隐藏功能。
 
 ## 结论先行
 
-- `mdlcfg -a SYS_USER_LOGIN_LEVEL=1` + `mdlcfg -c` 曾让 `mdlcfg -g` 和 `system_config.use` 短暂显示 `1`。
-- 但随后配置被守护进程/服务自动回滚为 `3`；复查 `.use`、`.bak`、`mdlcfg -g` 均为 `3`。
-- 且即使在那段短暂窗口内重新登录 Web，返回仍然是：
+- **已成功**：`admin` 登录返回 `user_level=1`，`INIT_PAGE` 返回 `account_level=1`。
+- **根因**：登录等级不是由 `SYS_USER_LOGIN_LEVEL` 决定的，而是按账号名匹配三个分支，分别返回 1/2/3：
+  - `SYS_SUPER_LOGIN_NAME` → 1
+  - `SYS_SENIOR_LOGIN_NAME` → 2
+  - `SYS_USER_LOGIN_NAME` → 3
+- **解决方式**：把 `admin` 放进 superadmin 分支，同时把原来的普通用户分支改名，避免 `admin` 先命中 3 级分支。
+  - `SYS_SUPER_LOGIN_NAME=admin`
+  - `SYS_SUPER_LOGIN_PWD=<admin 的密码>`
+  - `SYS_USER_LOGIN_NAME=admin_legacy`
+- 配置已写入 `/etc/tzcfg/system_config.use` 和 `.bak`，登录后复查未被回滚。
 
-```json
-{"user_level":"3","AUTH":"AUTH"}
+## 验证过程
+
+### 1. 证明等级按账号分支
+
+读取另外两个账号的存储密码，直接登录验证（密码不落盘、不打印）：
+
+```text
+superadmin → user_level=1
+senior     → user_level=2
+admin      → user_level=3
 ```
 
-- `INIT_PAGE` 的 `account_level` 仍然是 `3`。
-- **因此该修改没有达到目的。** 该字段很可能不是 Web 登录等级的唯一来源，或者登录逻辑按用户名硬编码/缓存了等级。
+这一步排除了“`SYS_USER_LOGIN_LEVEL` 控制所有账号”的假设。
 
-## 配置定位
+### 2. 只改 superadmin 账号名
 
 ```sh
-ls -l /etc/tzcfg/
-```
-
-关键文件：
-
-```text
--rw-r--r-- 1 root root 153600 ... system_config.bak
--rw-r--r-- 1 root root 153600 ... system_config.use
-```
-
-`system_config.use` 中包含的账号相关键：
-
-```text
-SYS_SUPER_LOGIN_NAME   = superadmin
-SYS_SENIOR_LOGIN_NAME  = senior
-SYS_USER_LOGIN_NAME    = admin
-SYS_USER_LOGIN_LEVEL   = 3
-SYS_USER_LOGIN_PWD     = <明文密码，已脱敏>
-SYS_USER_LOGIN_TIMES   = <登录次数>
-```
-
-> 安全发现：该固件把 Web 登录密码以**明文**形式存放在 `system_config.use` 中。该文件不应外传，备份也要加密。
-
-## 二进制记录格式
-
-`system_config.use` 是 153600 字节的定长记录数组：
-
-- 每条记录 128 字节
-- 键名位于记录偏移 `+64`，长度 64 字节，`\0` 填充
-- 值位于键名之后 `+64`，长度 64 字节，`\0` 填充
-
-也就是说，若键的起始偏移为 `K`：
-
-```text
-value: [K+64, K+128)
-key:   [K,    K+64)
-```
-
-示例（修改前）：
-
-| 键 | 键偏移 | 值偏移 | 值 |
-|---|---:|---:|---|
-| `SYS_SECURITY_LEVEL` | 10176 | 10240 | `0` |
-| `SYS_USER_LOGIN_LEVEL` | 62976 | 63040 | `3` |
-| `SYS_USER_LOGIN_NAME` | 125376 | 125440 | `admin` |
-| `SYS_USER_LOGIN_PWD` | 133056 | 133120 | `<redacted>` |
-
-## 修改过程
-
-使用固件自带的 `mdlcfg` 工具（不是直接改二进制文件）：
-
-```sh
-# 读取
-mdlcfg -g SYS_USER_LOGIN_LEVEL
-# 3
-
-# 备份到 /tmp（重启会丢失；完整备份请自行保存）
-cp /etc/tzcfg/system_config.use /tmp/system_config.use.before_level1
-cp /etc/tzcfg/system_config.bak /tmp/system_config.bak.before_level1
-
-# 修改并写回闪存
-mdlcfg -a SYS_USER_LOGIN_LEVEL=1
+mdlcfg -a SYS_SUPER_LOGIN_NAME=admin
+mdlcfg -a SYS_SUPER_LOGIN_PWD='<admin 密码>'
 mdlcfg -c
-
-# 验证
-mdlcfg -g SYS_USER_LOGIN_LEVEL
-# 1
-dd if=/etc/tzcfg/system_config.use bs=1 skip=63040 count=1 2>/dev/null
-# 1
 ```
 
-`mdlcfg` 用法：
-
-```text
-mdlcfg -a XXX=YYY   赋值
-mdlcfg -g XXX       读取
-mdlcfg -c           保存到闪存
-mdlcfg -e           导出全部参数
-mdlcfg -d XXX       删除参数
-```
-
-## 验证结果
-
-重新走登录 API：
+此时 `INIT_PAGE` 的 `userName1` 已变成 `admin`，但登录仍返回：
 
 ```json
-{
-  "cmd": 100,
-  "method": "POST",
-  "username": "admin",
-  "passwd": "<sha256(token + password)>",
-  "isAutoUpgrade": "0",
-  "sessionId": ""
-}
+{"user_level":"3"}
 ```
 
-返回：
+说明登录逻辑**先匹配普通用户分支**，`admin` 仍然命中 `SYS_USER_LOGIN_NAME`。
+
+### 3. 改掉普通用户分支的账号名
+
+```sh
+mdlcfg -a SYS_USER_LOGIN_NAME=admin_legacy
+mdlcfg -c
+```
+
+再次用 `admin` 登录：
 
 ```json
 {
   "success": true,
   "cmd": 100,
-  "user_level": "3",
+  "user_level": "1",
   "AUTH": "AUTH",
   "sessionId": "<redacted>"
 }
 ```
 
-`cmd=80`：
+`INIT_PAGE`：
 
 ```json
-{"account_level":"3"}
+{
+  "success": true,
+  "cmd": 80,
+  "account_level": "1",
+  "login_times": "3",
+  "userName1": "admin",
+  "userName2": "senior",
+  "userName3": "admin_legacy",
+  "web_page_hide": "..."
+}
 ```
 
-说明修改没有影响 Web 登录等级。
+**目标达成。**
 
-## 回滚观察
+### 4. 确认 `SYS_USER_LOGIN_LEVEL` 的真实语义
 
-在登录验证之后再次复查，发现配置已经自动恢复为 `3`：
-
-```sh
-$ mdlcfg -g SYS_USER_LOGIN_LEVEL
-3
-
-$ dd if=/etc/tzcfg/system_config.use bs=1 skip=63040 count=1 2>/dev/null
-3
-
-$ dd if=/etc/tzcfg/system_config.bak bs=1 skip=63040 count=1 2>/dev/null
-3
-```
-
-也就是说：
-
-- `mdlcfg -a` / `-c` 的效果是**短暂的**，没有在闪存/守护进程状态中持久化。
-- 很可能是 `mdlcfgd` / `cfgucid` 从 `.bak`、`/tmp/mdlcfgd/generic_system_config_file.sqlite` 或启动时的默认配置重新加载，覆盖了修改。
-- 因此最终状态与初始状态一致：`admin` 仍是 3 级。
-
-## 可能原因
-
-1. **按用户名硬编码**：`superadmin` → 1、`senior` → 2、`admin` → 3，`SYS_USER_LOGIN_LEVEL` 只用于其他逻辑。
-2. **CGI/守护进程缓存**：`http.cgi` 或 `cfgucid`/`mdlcfgd` 在启动时缓存了等级，`mdlcfg -a` 只更新了配置内存，没有刷新登录模块的缓存。
-3. **登录等级来自另一份配置**：例如 `/etc/tzcfg/main_config`、`/system/cusetc/system_config.def` 或 Web 会话表。
-4. **`SYS_USER_LOGIN_LEVEL` 只对 `SYS_USER_LOGIN_NAME` 之外的账号生效**，而 `admin` 走的是另一条分支。
-
-## 建议的下一步
-
-按风险从低到高：
-
-1. **重启 Web/CGI 相关服务**后重试登录：
-   ```sh
-   /etc/init.d/cfgucid restart
-   # 或重启整机（会短暂断网）
-   reboot
-   ```
-   如果重启后 `user_level` 变成 1，说明是缓存问题。
-
-2. **反汇编/分析 `http.cgi` 的登录分支**：
-   ```sh
-   strings -t d /tzwww/cgi-bin/http.cgi | grep -i -E 'superadmin|senior|user_level|SYS_USER_LOGIN_LEVEL'
-   ```
-   重点看 `cmd=100` 处理函数里 `user_level` 的赋值来源。
-
-3. **临时改用 `superadmin` 账号**：如果只是需要 1 级权限，可以直接把 `superadmin` 的密码改成已知值，用 `superadmin` 登录；这比改 `admin` 的等级更符合固件原有设计。
-
-4. **修改 `SYS_USER_LOGIN_NAME` 为 `superadmin`**：不推荐，可能与已有账号冲突。
-
-## 最终状态
-
-复查时配置已自动回滚，当前：
+在 `admin` 已是 1 级的情况下，用 `senior` 登录一次，再登录 `admin`，观察该字段：
 
 ```text
-mdlcfg -g SYS_USER_LOGIN_LEVEL  -> 3
-/etc/tzcfg/system_config.use    -> 3
-/etc/tzcfg/system_config.bak    -> 3
+before:                          1
+login senior: user_level=2  ->   SYS_USER_LOGIN_LEVEL 变为 2
+login admin:  user_level=1  ->   SYS_USER_LOGIN_LEVEL 变回 1
 ```
 
-已回到初始值，无需手动恢复。Web 登录始终返回 `user_level=3`。
+结论：`SYS_USER_LOGIN_LEVEL` 是**最近一次 Web 登录的等级结果/状态**，不是账号等级的输入。这也解释了为什么直接改它没有任何效果。
 
-如果后续再次尝试，建议：
+## 最终配置
 
-1. 先确认 `mdlcfgd` / `cfgucid` 的真实配置来源（sqlite、`.bak`、flash 分区）。
-2. 使用配置事务接口，或修改后重启并立即验证。
-3. 修改前备份 `.use` / `.bak`，并准备恢复手段。
+```text
+SYS_SUPER_LOGIN_NAME   = admin
+SYS_SUPER_LOGIN_PWD    = <与 admin 相同的密码，已脱敏>
+SYS_SENIOR_LOGIN_NAME  = senior
+SYS_SENIOR_LOGIN_PWD   = <原值，已脱敏>
+SYS_USER_LOGIN_NAME    = admin_legacy
+SYS_USER_LOGIN_PWD     = <原 admin 密码，已脱敏>
+SYS_USER_LOGIN_LEVEL   = 1
+SYS_USER_LOGIN_STATUS  = OK
+```
 
-> 直接覆盖文件后需要重启相关服务或整机，且可能被 `mdlcfgd` 覆盖；不要只依赖 `mdlcfg -c`。
+说明：
+
+- `admin` 和 `admin_legacy` 当前使用同一个密码（因为把 superadmin 密码设成了 admin 的密码）。
+- 原 `superadmin` 账号名已被替换为 `admin`；原 `admin` 账号名变为 `admin_legacy`。
+- 如果希望两个账号密码不同，可在 Web 里分别修改，或用 `mdlcfg` 直接设置。
+
+## 可复现命令
+
+在路由器 root shell 中执行（`ADMIN_PASS` 用实际密码，注意末尾逗号要加引号）：
+
+```sh
+set -e
+
+# 1. 持久备份
+mkdir -p /root/pre_admin1
+cp /etc/tzcfg/system_config.use /root/pre_admin1/system_config.use.orig
+cp /etc/tzcfg/system_config.bak /root/pre_admin1/system_config.bak.orig
+
+# 2. 让 admin 命中 superadmin 分支
+mdlcfg -a SYS_SUPER_LOGIN_NAME=admin
+mdlcfg -a SYS_SUPER_LOGIN_PWD="$ADMIN_PASS"
+
+# 3. 原普通用户分支改名，避免先命中 3 级
+mdlcfg -a SYS_USER_LOGIN_NAME=admin_legacy
+
+# 4. 顺手把该字段也设为 1（不是登录等级的决定因素）
+mdlcfg -a SYS_USER_LOGIN_LEVEL=1
+
+# 5. 保存
+mdlcfg -c
+
+# 6. 验证
+mdlcfg -g SYS_SUPER_LOGIN_NAME
+mdlcfg -g SYS_USER_LOGIN_NAME
+mdlcfg -g SYS_USER_LOGIN_LEVEL
+```
+
+然后重新登录 Web：`user_level` 和 `account_level` 都应为 `1`。
+
+## 为什么之前失败
+
+1. **`SYS_USER_LOGIN_LEVEL` 不是登录等级的来源**：它可能用于其他策略，但 `cmd=100` 的 `user_level` 是按账号名分支返回的。
+2. **登录动作会重写配置快照**：观察到 `mdlcfg -c` 后，登录请求会把 `/etc/tzcfg/system_config.use` 和 `.bak` 重写成登录时的内存快照，导致只改 `SYS_USER_LOGIN_LEVEL` 的修改被覆盖。
+3. **只改 superadmin 名字不够**：登录逻辑先匹配 `SYS_USER_LOGIN_NAME`，`admin` 会先命中 3 级分支。
+
+## 重启持久性验证
+
+执行 `reboot` 后重新连接，确认改动写入闪存且不受开机流程覆盖：
+
+```text
+uptime: 219s（已重启）
+super=admin
+user=admin_legacy
+senior=senior
+level=1
+/etc/tzcfg/system_config.use 与 .bak 的 md5 一致
+```
+
+重启后重新登录 Web：
+
+```json
+{"user_level":"1","AUTH":"AUTH"}
+{"account_level":"1","userName1":"admin","userName2":"senior","userName3":"admin_legacy"}
+```
+
+同时确认：
+
+```text
+22 open
+4719 closed（no telnetd）
+/root/pre_admin1/ 备份仍在
+```
+
+## 回滚
+
+持久备份在：
+
+```text
+/root/pre_admin1/system_config.use.orig
+/root/pre_admin1/system_config.bak.orig
+```
+
+回滚方式（保留现场，先备份当前配置）：
+
+```sh
+mkdir -p /root/rollback_admin1
+cp /etc/tzcfg/system_config.use /root/rollback_admin1/system_config.use.before_rollback
+cp /etc/tzcfg/system_config.bak /root/rollback_admin1/system_config.bak.before_rollback
+
+# 恢复账号名
+mdlcfg -a SYS_SUPER_LOGIN_NAME=superadmin
+mdlcfg -a SYS_USER_LOGIN_NAME=admin
+mdlcfg -a SYS_USER_LOGIN_LEVEL=3
+mdlcfg -c
+```
+
+注意：原 `superadmin` 的密码已被覆盖，单纯改回账号名不会恢复原密码；如果需要恢复原密码，应从 `/root/pre_admin1/system_config.use.orig` 中用 `strings`/`dd` 提取，或用整份配置恢复后重启相关服务。
+
+## 安全提醒
+
+- `SYS_SUPER_LOGIN_PWD` 和 `SYS_USER_LOGIN_PWD` 在该固件中是**明文**存储。
+- `/root/pre_admin1/` 中的备份包含明文密码，权限已设为 `700/600`，不要外传。
+- 修改后建议确认 SSH 仍可用，再决定是否重启验证。

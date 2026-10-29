@@ -19,10 +19,11 @@
 - SSH 已开启并监听 `0.0.0.0:22`、`:::22`
 - Dropbear 已设置开机自启：`S19dropbear` / `K50dropbear`
 - 临时开启的 Telnet（4719）已关闭
-- Web 管理员账号 `admin` 的等级仍为 **3**
-  - 已尝试通过 `mdlcfg` 将 `SYS_USER_LOGIN_LEVEL` 改为 `1`，但 Web 登录仍返回 `user_level=3`
-  - 修改随后被守护进程/服务自动回滚为 `3`；复查 `.use`、`.bak`、`mdlcfg -g` 均为 `3`
-  - 详细过程与结论见 [`docs/05-admin-level-attempt.md`](docs/05-admin-level-attempt.md)，**未生效**
+- Web 管理员账号 `admin` 已提升为 **1 级**（superadmin 权限）
+  - `admin` 登录返回 `user_level=1`，`INIT_PAGE` 返回 `account_level=1`
+  - 根因：等级按账号名分支返回，不是由 `SYS_USER_LOGIN_LEVEL` 决定
+  - 方法：`SYS_SUPER_LOGIN_NAME=admin` + `SYS_USER_LOGIN_NAME=admin_legacy` + `SYS_SUPER_LOGIN_PWD=<admin 密码>`
+  - 详见 [`docs/05-admin-level-attempt.md`](docs/05-admin-level-attempt.md)
 - 仓库内不包含任何真实密码；请使用环境变量或本地 `secrets.env`
 
 ## 快速连接
@@ -58,11 +59,12 @@ ssh root@192.168.123.1
 │   ├── 02-login-api.md              # /cgi-bin/http.cgi 登录流程
 │   ├── 03-rce-and-telnet.md         # SYS_SERVICE_SET 与 ping 命令注入
 │   ├── 04-enable-ssh.md             # Dropbear 配置与验证
-│   ├── 05-admin-level-attempt.md    # admin 等级改 1 的尝试（未生效）
+│   ├── 05-admin-level-attempt.md    # admin 等级改 1（已成功）
 │   └── 06-api-reference.md          # 本次用到的 cmd 速查
 ├── scripts/
 │   ├── router_api.py                # 登录 / INIT_PAGE / SYS_SERVICE_SET / ping RCE
 │   ├── configure_dropbear.sh        # 在路由器上配置并启动 Dropbear
+│   ├── set_admin_level1.sh          # 把 admin 提升到 1 级（可复现）
 │   └── verify_ssh.sh                # 客户端兼容性验证
 ├── artifacts/
 │   ├── system_config_format.md      # /etc/tzcfg/system_config.use 记录格式
