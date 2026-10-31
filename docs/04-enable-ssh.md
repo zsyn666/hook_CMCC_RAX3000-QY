@@ -89,7 +89,7 @@ passwd: password for root changed by root
 由于 Dropbear 只提供 `ssh-rsa` 主机密钥，新版 OpenSSH 会报：
 
 ```text
-Unable to negotiate with 192.168.123.1 port 22:
+Unable to negotiate with 192.168.1.1 port 22:
 no matching host key type found. Their offer: ssh-rsa
 ```
 
@@ -98,14 +98,14 @@ no matching host key type found. Their offer: ssh-rsa
 ```bash
 ssh -o HostKeyAlgorithms=+ssh-rsa \
     -o PubkeyAcceptedAlgorithms=+ssh-rsa \
-    root@192.168.123.1
+    root@192.168.1.1
 ```
 
 或写入 `~/.ssh/config`：
 
 ```text
-Host 192.168.123.1
-  HostName 192.168.123.1
+Host 192.168.1.1
+  HostName 192.168.1.1
   User root
   HostKeyAlgorithms +ssh-rsa
   PubkeyAcceptedAlgorithms +ssh-rsa
@@ -114,7 +114,7 @@ Host 192.168.123.1
 之后直接：
 
 ```bash
-ssh root@192.168.123.1
+ssh root@192.168.1.1
 ```
 
 验证输出：

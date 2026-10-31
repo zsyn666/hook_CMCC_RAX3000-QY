@@ -114,7 +114,7 @@ passwd: password for root changed by root
 ## 4. 通过 Telnet 获取 root shell
 
 ```bash
-telnet 192.168.123.1 4719
+telnet 192.168.1.1 4719
 ```
 
 登录：

@@ -10,7 +10,7 @@
 - 脚本从环境变量读取密码：
 
 ```sh
-export ROUTER_IP=192.168.123.1
+export ROUTER_IP=192.168.1.1
 export ROUTER_USER=admin
 export ROUTER_PASS='<your-password>'
 ```

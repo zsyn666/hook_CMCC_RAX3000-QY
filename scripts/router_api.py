@@ -3,7 +3,7 @@
 Minimal client for CMCC RAX3000Q/QY /cgi-bin/http.cgi.
 
 Credentials are read from environment variables:
-    ROUTER_IP    default 192.168.123.1
+    ROUTER_IP    default 192.168.1.1
     ROUTER_USER  default admin
     ROUTER_PASS  required for login
 
@@ -26,7 +26,7 @@ import sys
 import time
 import urllib.request
 
-DEFAULT_IP = "192.168.123.1"
+DEFAULT_IP = "192.168.1.1"
 DEFAULT_USER = "admin"
 HTTP_TIMEOUT = 15
 

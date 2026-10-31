@@ -2,7 +2,7 @@
 # Verify SSH access to the router with legacy ssh-rsa host key support.
 # Usage: ./verify_ssh.sh [router-ip] [user]
 
-HOST="${1:-192.168.123.1}"
+HOST="${1:-192.168.1.1}"
 USER="${2:-root}"
 
 ssh \

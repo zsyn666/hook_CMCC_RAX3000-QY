@@ -82,7 +82,7 @@ tcp        0      0 :::22                   :::*                    LISTEN
 
 ## SSH 登录验证
 
-$ ssh -o HostKeyAlgorithms=+ssh-rsa -o PubkeyAcceptedAlgorithms=+ssh-rsa root@192.168.123.1 'id; uname -a; echo SSH_OK'
+$ ssh -o HostKeyAlgorithms=+ssh-rsa -o PubkeyAcceptedAlgorithms=+ssh-rsa root@192.168.1.1 'id; uname -a; echo SSH_OK'
 uid=0(root) gid=0(root)
 Linux OpenWrt 4.4.60 #2 SMP Thu Jan 6 22:19:36 CST 2022 armv7l GNU/Linux
 SSH_OK

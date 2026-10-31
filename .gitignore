@@ -7,6 +7,7 @@ system_config.bak
 *.use
 *.bak
 *.log
+.workbuddy/
 
 # Python
 __pycache__/
