@@ -56,6 +56,17 @@
 | 配置存储     | `/etc/tzcfg/system_config.use`（定长记录，**密码明文**） |
 
 > 厂商没有对外暴露统一版本号字符串，因此本文以**固件构建时间 + 组件版本**作为版本标识。
+> Web UI 中可见的软件版本形如 `V1.1.0.202201062157`（末段即构建时间）。
+
+<p align="center">
+  <img src="img/01-桌面端-首页.png" alt="RAX3000Q Web 管理界面" width="720">
+</p>
+<p align="center"><sub>图 1　Web 管理界面（已手动遮蔽 SSID、MAC、设备名）</sub></p>
+
+<p align="center">
+  <img src="img/02-购买记录.jpg" alt="RAX3000-QY 购买记录" width="360">
+</p>
+<p align="center"><sub>图 2　设备来源：自行购入，用于证明"自有设备"这一授权前提</sub></p>
 
 ## 1.3 影响范围
 
